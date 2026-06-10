@@ -7,6 +7,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/pdcgo/san_collection/san_caches"
+	invoice_iface "github.com/pdcgo/schema/services/invoice_iface/v2"
 	role_base "github.com/pdcgo/schema/services/role_base/v1"
 	"github.com/pdcgo/schema/services/user_iface/v2"
 	"github.com/pdcgo/shared/pkg/moretest"
@@ -129,6 +130,60 @@ func TestAccessInterceptor(t *testing.T) {
 					called, err := run(teamReq(), token(t, stranger.ID, future))
 					assert.False(t, called)
 					assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+				})
+
+				// allow_only_authenticated request (ResetPasswordRequest): any valid
+				// token passes, regardless of role.
+				authOnlyReq := func() connect.AnyRequest {
+					return connect.NewRequest(&user_iface.ResetPasswordRequest{})
+				}
+
+				t.Run("authenticated-only: stranger with valid token passes", func(t *testing.T) {
+					called, err := run(authOnlyReq(), token(t, stranger.ID, future))
+					assert.NoError(t, err)
+					assert.True(t, called)
+				})
+
+				t.Run("authenticated-only: missing token -> unauthenticated", func(t *testing.T) {
+					called, err := run(authOnlyReq(), "")
+					assert.False(t, called)
+					assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+				})
+
+				t.Run("authenticated-only: expired token -> unauthenticated", func(t *testing.T) {
+					called, err := run(authOnlyReq(), token(t, stranger.ID, past))
+					assert.False(t, called)
+					assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+				})
+
+				// allow_only_authenticated + use_scope (CreateBalanceLogRequest, team_id
+				// scoped): requires any role in that team; root/admin bypass.
+				scopedAuthReq := func() connect.AnyRequest {
+					return connect.NewRequest(&invoice_iface.CreateBalanceLogRequest{TeamId: 5})
+				}
+
+				t.Run("scoped authenticated: team member passes", func(t *testing.T) {
+					called, err := run(scopedAuthReq(), token(t, owner.ID, future))
+					assert.NoError(t, err)
+					assert.True(t, called)
+				})
+
+				t.Run("scoped authenticated: root passes", func(t *testing.T) {
+					called, err := run(scopedAuthReq(), token(t, root.ID, future))
+					assert.NoError(t, err)
+					assert.True(t, called)
+				})
+
+				t.Run("scoped authenticated: stranger (no role in team) denied", func(t *testing.T) {
+					called, err := run(scopedAuthReq(), token(t, stranger.ID, future))
+					assert.False(t, called)
+					assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+				})
+
+				t.Run("scoped authenticated: missing token -> unauthenticated", func(t *testing.T) {
+					called, err := run(scopedAuthReq(), "")
+					assert.False(t, called)
+					assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
 				})
 
 				t.Run("context carries identity and scope", func(t *testing.T) {

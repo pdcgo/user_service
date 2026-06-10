@@ -33,11 +33,15 @@ type accessInterceptor struct {
 // NewInterceptor returns a connect.Interceptor that enforces the
 // (role_base.v1.request_policy) declared on each request message:
 //
-//   - allow_all  -> public (no token).
-//   - otherwise  -> require a valid Authorization: Bearer token, then check the
-//     caller's roles in user_team_roles. ROLE_ROOT/ROLE_ADMIN at team 1 always
-//     pass; a team-scoped request (field tagged use_scope) requires one of the
-//     policy roles in that team; a non-scoped request requires root/admin.
+//   - allow_all                -> public (no token).
+//   - allow_only_authenticated -> require a valid Authorization: Bearer token.
+//     If the request is team-scoped (a use_scope field), the caller must also
+//     have any role in that team; otherwise any logged-in caller passes.
+//     ROLE_ROOT/ROLE_ADMIN at team 1 always pass.
+//   - otherwise                -> require a valid token, then check the caller's
+//     roles in user_team_roles. ROLE_ROOT/ROLE_ADMIN at team 1 always pass; a
+//     team-scoped request (field tagged use_scope) requires one of the policy
+//     roles in that team; a non-scoped request requires root/admin.
 func NewAccessInterceptor(
 	db *gorm.DB,
 	secret string,
@@ -91,6 +95,11 @@ func (a *accessInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc 
 		ctx = SetIdentityToCtx(ctx, tok.Identity)
 		ctx = SetScopeIDToCtx(ctx, teamID)
 
+		// allow_only_authenticated, unscoped: a valid token is enough.
+		if policy.AllowOnlyAuthenticated && teamID == 0 {
+			return next(ctx, req)
+		}
+
 		// Root/admin (system team) are global super-admins.
 		isRoot, err := a.hasRole(ctx, userID, rootTeamID, []role_base.Role{
 			role_base.Role_ROLE_ROOT,
@@ -100,6 +109,18 @@ func (a *accessInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc 
 			return nil, err
 		}
 		if isRoot {
+			return next(ctx, req)
+		}
+
+		// allow_only_authenticated, team-scoped: require any role in that team.
+		if policy.AllowOnlyAuthenticated {
+			role, err := a.getRole(ctx, userID, teamID)
+			if err != nil {
+				return nil, err
+			}
+			if role == 0 {
+				return nil, connect.NewError(connect.CodePermissionDenied, errors.New("requires a role in the team"))
+			}
 			return next(ctx, req)
 		}
 

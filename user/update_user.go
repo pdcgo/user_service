@@ -3,18 +3,16 @@ package user
 import (
 	"context"
 	"strings"
-	"time"
 
 	"connectrpc.com/connect"
 	"github.com/pdcgo/schema/services/user_iface/v2"
 	"github.com/pdcgo/user_service/user_models"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // UpdateUser implements [user_ifaceconnect.V2UserServiceHandler].
 //
-// Only non-empty fields are updated; an empty password leaves the existing one
-// intact.
+// Only non-empty fields are updated. Password changes go through ResetPassword
+// (self-service), not this RPC.
 func (s *v2UserServiceImpl) UpdateUser(
 	ctx context.Context,
 	req *connect.Request[user_iface.UpdateUserRequest],
@@ -31,13 +29,8 @@ func (s *v2UserServiceImpl) UpdateUser(
 	if pay.Name != "" {
 		updates["name"] = pay.Name
 	}
-	if pay.Password != "" {
-		hash, err := bcrypt.GenerateFromPassword([]byte(pay.Password), bcrypt.DefaultCost)
-		if err != nil {
-			return nil, err
-		}
-		updates["password"] = string(hash)
-		updates["last_password_reset"] = time.Now()
+	if pay.PhoneNumber != "" {
+		updates["phone_number"] = strings.TrimSpace(pay.PhoneNumber)
 	}
 
 	db := s.db.WithContext(ctx)

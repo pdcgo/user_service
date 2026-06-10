@@ -31,6 +31,7 @@ func (s *v2UserServiceImpl) CreateUser(
 		Username:          strings.ToLower(strings.TrimSpace(pay.Username)),
 		Email:             strings.ToLower(strings.TrimSpace(pay.Email)),
 		Password:          string(hash),
+		PhoneNumber:       strings.TrimSpace(pay.PhoneNumber),
 		CreatedAt:         now,
 		LastPasswordReset: now,
 	}
