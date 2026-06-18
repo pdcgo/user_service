@@ -2,19 +2,17 @@ module github.com/pdcgo/user_service
 
 go 1.25.0
 
-replace github.com/pdcgo/schema => ../schema
-
 require (
 	connectrpc.com/connect v1.20.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/wire v0.7.0
-	github.com/pdcgo/san_collection v1.0.2
-	github.com/pdcgo/schema v1.0.134
+	github.com/pdcgo/san_collection v1.0.4
+	github.com/pdcgo/schema v1.0.147
 	github.com/pdcgo/shared v1.0.134
 	github.com/redis/go-redis/v9 v9.18.0
 	github.com/stretchr/testify v1.11.1
+	github.com/urfave/cli/v3 v3.7.0
 	golang.org/x/crypto v0.52.0
-	golang.org/x/net v0.55.0
 	google.golang.org/protobuf v1.36.11
 	gorm.io/gorm v1.31.1
 )
@@ -111,6 +109,7 @@ require (
 	golang.org/x/arch v0.23.0 // indirect
 	golang.org/x/exp v0.0.0-20251125195548-87e1e737ad39 // indirect
 	golang.org/x/mod v0.35.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect

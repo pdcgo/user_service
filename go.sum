@@ -486,8 +486,10 @@ github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJ
 github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9Gz0M=
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
-github.com/pdcgo/san_collection v1.0.2 h1:o9B8mxF6BM55lTT4e2Y93S6GAw5LLjvqpJ612p1Re8A=
-github.com/pdcgo/san_collection v1.0.2/go.mod h1:NtGhoMsmHoZt2fBTdPz1n+7o/BM48IRE/GyJJaRARMw=
+github.com/pdcgo/san_collection v1.0.4 h1:AwsREd1BRKX0KkEff9AJChViKnVPAKuUYBUe2k2ieMs=
+github.com/pdcgo/san_collection v1.0.4/go.mod h1:G+mEGEwpTpA2q+WrLE1rKsCq1FvOIozaPvWQCZtLNvU=
+github.com/pdcgo/schema v1.0.147 h1:m3X2SbrqxgZ7AwKfyg6xPT4+lH/9IGgNefmMun2Bpgc=
+github.com/pdcgo/schema v1.0.147/go.mod h1:PFVdZ4apphj9eQ3JPMhf8plHqRn2gB9sOyCzy/Iz50M=
 github.com/pdcgo/shared v1.0.134 h1:yZ9b76xndLtNmwfDe7LIkQaZW+hN6+AHm9+mp37O4Fo=
 github.com/pdcgo/shared v1.0.134/go.mod h1:0fmKj08SxkQIBefLiiqDWj/mw9T0YFw1pUeyqTTbt84=
 github.com/pdcgo/v2_gots_sdk v1.3.10 h1:8rQFfldS6SRJE83VStmIWh74iNjVscr1IATLHKg9lo8=
@@ -547,6 +549,8 @@ github.com/twitchyliquid64/golang-asm v0.15.1 h1:SU5vSMR7hnwNxj24w34ZyCi/FmDZTkS
 github.com/twitchyliquid64/golang-asm v0.15.1/go.mod h1:a1lVb/DtPvCB8fslRZhAngC2+aY1QWCk3Cedj/Gdt08=
 github.com/ugorji/go/codec v1.3.1 h1:waO7eEiFDwidsBN6agj1vJQ4AG7lh2yqXyOXqhgQuyY=
 github.com/ugorji/go/codec v1.3.1/go.mod h1:pRBVtBSKl77K30Bv8R2P+cLSGaTtex6fsA2Wjqmfxj4=
+github.com/urfave/cli/v3 v3.7.0 h1:AGSnbUyjtLiM+WJUb4dzXKldl/gL+F8OwmRDtVr6g2U=
+github.com/urfave/cli/v3 v3.7.0/go.mod h1:ysVLtOEmg2tOy6PknnYVhDoouyC/6N42TMeoMzskhso=
 github.com/wargasipil/data_processing v0.0.0-20260420085126-0b978af04e6f h1:yCvkra+ctNSsdnzSmU5y8BX+sR/6z0dAs37OS0fBVrI=
 github.com/wargasipil/data_processing v0.0.0-20260420085126-0b978af04e6f/go.mod h1:GzRfjz0EGPWj3hZJqBheiaCZvp298HntusbRnaLNKX0=
 github.com/yuin/goldmark v1.1.25/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

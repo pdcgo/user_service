@@ -11,12 +11,13 @@ import (
 	"github.com/pdcgo/shared/configs"
 	"github.com/pdcgo/shared/custom_connect"
 	"github.com/pdcgo/user_service"
+	"github.com/urfave/cli/v3"
 	"net/http"
 )
 
 // Injectors from wire.go:
 
-func InitializeApp() (*App, error) {
+func InitializeApp() (*cli.Command, error) {
 	serveMux := http.NewServeMux()
 	appConfig, err := configs.NewProductionConfig()
 	if err != nil {
@@ -34,6 +35,8 @@ func InitializeApp() (*App, error) {
 	cacheManager := san_caches.NewRedisCacheManager(client)
 	registerHandler := user_service.NewRegister(serveMux, db, appConfig, defaultInterceptor, cacheManager)
 	registerReflectFunc := custom_connect.NewRegisterReflect(serveMux)
-	app := NewApp(serveMux, registerHandler, registerReflectFunc)
-	return app, nil
+	serviceApiFunc := NewServiceApiFunc(serveMux, registerHandler, registerReflectFunc)
+	syncLegacyFunc := NewSyncLegacyFunc(db, appConfig)
+	command := NewApp(serviceApiFunc, syncLegacyFunc)
+	return command, nil
 }

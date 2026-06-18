@@ -1,18 +1,14 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"net/http"
+	"context"
 	"os"
 
 	"github.com/pdcgo/shared/configs"
-	"github.com/pdcgo/shared/custom_connect"
 	"github.com/pdcgo/shared/db_connect"
-	"github.com/pdcgo/user_service"
+	"github.com/pdcgo/shared/pkg/cloud_logging"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
+	"github.com/urfave/cli/v3"
 	"gorm.io/gorm"
 )
 
@@ -24,42 +20,44 @@ func NewRedisDatabase(cfg *configs.AppConfig) *redis.Client {
 	return db_connect.NewRedisDatabase(&cfg.RedisConfig)
 }
 
-type App struct {
-	Run func() error
-}
-
 func NewApp(
-	mux *http.ServeMux,
-	register user_service.RegisterHandler,
-	reflectorRegister custom_connect.RegisterReflectFunc,
-) *App {
-	return &App{
-		Run: func() error {
-			reflectorRegister(register())
-
-			port := os.Getenv("PORT")
-			if port == "" {
-				port = "8080"
-			}
-			listen := fmt.Sprintf("%s:%s", os.Getenv("HOST"), port)
-			log.Println("listening on", listen)
-
-			return http.ListenAndServe(
-				listen,
-				// Use h2c so we can serve HTTP/2 without TLS.
-				h2c.NewHandler(custom_connect.WithCORS(mux), &http2.Server{}),
-			)
+	serviceApiFunc ServiceApiFunc,
+	syncLegacyFunc SyncLegacyFunc,
+) *cli.Command {
+	return &cli.Command{
+		Name:   "run",
+		Action: cli.ActionFunc(serviceApiFunc),
+		Commands: []*cli.Command{
+			{
+				Name:   "sync-legacy",
+				Action: cli.ActionFunc(syncLegacyFunc),
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "host",
+						Aliases: []string{"H"},
+						Value:   "http://localhost:8080",
+					},
+					&cli.StringFlag{
+						Name:    "username",
+						Aliases: []string{"u"},
+					},
+				},
+			},
 		},
 	}
 }
 
 func main() {
+	if os.Getenv("DISABLE_CLOUD_LOGGING") == "" {
+		cloud_logging.SetCloudLoggingDefault()
+	}
+
 	app, err := InitializeApp()
 	if err != nil {
 		panic(err)
 	}
 
-	if err := app.Run(); err != nil {
+	if err := app.Run(context.Background(), os.Args); err != nil {
 		panic(err)
 	}
 }
