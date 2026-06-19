@@ -17,11 +17,12 @@ const (
 )
 
 type searchUserRow struct {
-	ID          uint
-	Email       string
-	Username    string
-	PhoneNumber string
-	Name        string
+	ID             uint
+	Email          string
+	Username       string
+	PhoneNumber    string
+	Name           string
+	ProfilePicture string
 }
 
 // SearchUser implements [user_ifaceconnect.V2UserServiceHandler]. It looks up
@@ -36,7 +37,7 @@ func (s *v2UserServiceImpl) SearchUser(
 
 	q := db.
 		Model(&user_models.User{}).
-		Select("users.id, users.email, users.username, users.phone_number, users.name")
+		Select("users.id, users.email, users.username, users.phone_number, users.name, users.profile_picture")
 
 	switch {
 	case pay.GetKeyword() != nil:
@@ -90,11 +91,12 @@ func (s *v2UserServiceImpl) SearchUser(
 	resp := &user_iface.SearchUserResponse{Users: make([]*user_iface.SearchUserItem, 0, len(rows))}
 	for _, r := range rows {
 		resp.Users = append(resp.Users, &user_iface.SearchUserItem{
-			Id:          uint64(r.ID),
-			Email:       r.Email,
-			Username:    r.Username,
-			PhoneNumber: r.PhoneNumber,
-			Name:        r.Name,
+			Id:             uint64(r.ID),
+			Email:          r.Email,
+			Username:       r.Username,
+			PhoneNumber:    r.PhoneNumber,
+			Name:           r.Name,
+			ProfilePicture: r.ProfilePicture,
 		})
 	}
 

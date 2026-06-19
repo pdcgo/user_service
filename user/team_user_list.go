@@ -11,13 +11,14 @@ import (
 )
 
 type teamMember struct {
-	ID          uint
-	Name        string
-	Email       string
-	Username    string
-	PhoneNumber string
-	IsSuspended bool
-	Role        uint
+	ID             uint
+	Name           string
+	Email          string
+	Username       string
+	PhoneNumber    string
+	IsSuspended    bool
+	Role           uint
+	ProfilePicture string
 }
 
 // TeamUserList implements [user_ifaceconnect.V2UserServiceHandler]. It returns
@@ -31,7 +32,7 @@ func (s *v2UserServiceImpl) TeamUserList(
 
 	q := db.
 		Model(&user_models.UserTeamRole{}).
-		Select("users.id, users.name, users.email, users.username, users.phone_number, users.is_suspended, user_team_roles.role").
+		Select("users.id, users.name, users.email, users.username, users.phone_number, users.is_suspended, user_team_roles.role, users.profile_picture").
 		Joins("JOIN users ON users.id = user_team_roles.user_id").
 		Where("user_team_roles.team_id = ?", req.Msg.TeamId)
 
@@ -58,13 +59,14 @@ func (s *v2UserServiceImpl) TeamUserList(
 			status = user_iface.UserStatus_USER_STATUS_SUSPENDED
 		}
 		resp.Users = append(resp.Users, &user_iface.User{
-			Id:          uint64(m.ID),
-			Email:       m.Email,
-			Username:    m.Username,
-			PhoneNumber: m.PhoneNumber,
-			Name:        m.Name,
-			Status:      status,
-			Role:        role_base.Role(m.Role),
+			Id:             uint64(m.ID),
+			Email:          m.Email,
+			Username:       m.Username,
+			PhoneNumber:    m.PhoneNumber,
+			Name:           m.Name,
+			Status:         status,
+			Role:           role_base.Role(m.Role),
+			ProfilePicture: m.ProfilePicture,
 		})
 	}
 

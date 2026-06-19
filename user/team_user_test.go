@@ -25,8 +25,8 @@ func TestTeamUser(t *testing.T) {
 				svc := user.NewV2UserService(tx)
 				ctx := context.Background()
 
-				u1 := &user_models.User{Username: "alice", Email: "alice@x.com", Name: "Alice"}
-				u2 := &user_models.User{Username: "bob", Email: "bob@x.com", Name: "Bob"}
+				u1 := &user_models.User{Username: "alice", Email: "alice@x.com", Name: "Alice", ProfilePicture: "pic-alice"}
+				u2 := &user_models.User{Username: "bob", Email: "bob@x.com", Name: "Bob", ProfilePicture: "pic-bob"}
 				assert.NoError(t, tx.Create(u1).Error)
 				assert.NoError(t, tx.Create(u2).Error)
 
@@ -65,11 +65,15 @@ func TestTeamUser(t *testing.T) {
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 2)
 					roleByID := map[uint64]role_base.Role{}
+					picByID := map[uint64]string{}
 					for _, u := range res.Msg.Users {
 						roleByID[u.Id] = u.Role
+						picByID[u.Id] = u.ProfilePicture
 					}
 					assert.Equal(t, role_base.Role_ROLE_TEAM_OWNER, roleByID[uint64(u1.ID)])
 					assert.Equal(t, role_base.Role_ROLE_TEAM_CUSTOMER_SERVICE, roleByID[uint64(u2.ID)])
+					assert.Equal(t, "pic-alice", picByID[uint64(u1.ID)])
+					assert.Equal(t, "pic-bob", picByID[uint64(u2.ID)])
 
 					// role filter -> only the team owner (u1)
 					res, err = svc.TeamUserList(ctx, connect.NewRequest(&user_iface.TeamUserListRequest{
