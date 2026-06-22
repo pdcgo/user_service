@@ -10,8 +10,9 @@ import (
 
 // UserByIDs implements [user_ifaceconnect.V2UserServiceHandler]. It returns the
 // requested users keyed by id (missing ids are omitted). When team_id is set,
-// each user that is a member of that team also carries its per-team UserAlias
-// (alias + role); non-members, and a zero team_id, leave alias unset.
+// each member of that team carries a single-element per-team UserAlias list
+// (alias + role) and non-members carry none. When team_id is 0, every user
+// carries one UserAlias per team they belong to (all teams).
 func (s *v2UserServiceImpl) UserByIDs(
 	ctx context.Context,
 	req *connect.Request[user_iface.UserByIDsRequest],
@@ -29,18 +30,15 @@ func (s *v2UserServiceImpl) UserByIDs(
 		return nil, err
 	}
 
-	// per-team alias + role, only when a team is requested.
-	memberByUser := map[uint]user_models.UserTeamRole{}
-	if pay.TeamId != 0 {
-		var roles []user_models.UserTeamRole
-		if err := db.
-			Where("team_id = ? AND user_id IN ?", pay.TeamId, pay.Ids).
-			Find(&roles).Error; err != nil {
-			return nil, err
-		}
-		for _, r := range roles {
-			memberByUser[r.UserID] = r
-		}
+	// per-team alias + role. team_id set -> just that team (<=1 entry per user);
+	// team_id == 0 -> every team each user belongs to.
+	ids := make([]uint, 0, len(users))
+	for _, u := range users {
+		ids = append(ids, u.ID)
+	}
+	aliases, err := loadTeamAliases(db, ids, pay.TeamId)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, u := range users {
@@ -60,13 +58,7 @@ func (s *v2UserServiceImpl) UserByIDs(
 				ProfilePicture: u.ProfilePicture,
 			},
 		}
-		if r, ok := memberByUser[u.ID]; ok {
-			item.Alias = &user_iface.UserAlias{
-				TeamId: pay.TeamId,
-				Alias:  r.Alias,
-				Role:   r.Role,
-			}
-		}
+		item.Alias = aliases[u.ID]
 		resp.Users[uint64(u.ID)] = item
 	}
 

@@ -80,20 +80,74 @@ func TestTeamUser(t *testing.T) {
 					assert.Equal(t, "chief", aliasOf())
 				})
 
+				t.Run("create makes a new user and adds them to the team", func(t *testing.T) {
+					const createTeam = 88
+					_, err := svc.TeamUserUpdate(ctx, connect.NewRequest(&user_iface.TeamUserUpdateRequest{
+						TeamId: createTeam,
+						Action: &user_iface.TeamUserUpdateRequest_Create{
+							Create: &user_iface.CreateUser{
+								Email:    "newbie@x.com",
+								Username: "newbie",
+								Password: "secret123",
+								Name:     "Newbie",
+								Role:     role_base.Role_ROLE_TEAM_CUSTOMER_SERVICE,
+								Alias:    "rookie",
+							},
+						},
+					}))
+					assert.NoError(t, err)
+
+					// user created with a hashed (non-plaintext) password
+					var u user_models.User
+					assert.NoError(t, tx.Where("username = ?", "newbie").First(&u).Error)
+					assert.Equal(t, "newbie@x.com", u.Email)
+					assert.NotEmpty(t, u.Password)
+					assert.NotEqual(t, "secret123", u.Password)
+
+					// and added to the team with role + alias
+					var rec user_models.UserTeamRole
+					assert.NoError(t, tx.Where("team_id = ? AND user_id = ?", uint(createTeam), u.ID).First(&rec).Error)
+					assert.Equal(t, role_base.Role_ROLE_TEAM_CUSTOMER_SERVICE, rec.Role)
+					assert.Equal(t, "rookie", rec.Alias)
+
+					t.Run("duplicate username is already-exists and rolls back", func(t *testing.T) {
+						_, err := svc.TeamUserUpdate(ctx, connect.NewRequest(&user_iface.TeamUserUpdateRequest{
+							TeamId: createTeam,
+							Action: &user_iface.TeamUserUpdateRequest_Create{
+								Create: &user_iface.CreateUser{
+									Email:    "other@x.com",
+									Username: "newbie", // collides with the user created above
+									Password: "secret123",
+									Name:     "Other",
+									Role:     role_base.Role_ROLE_TEAM_ADMIN,
+								},
+							},
+						}))
+						assert.Equal(t, connect.CodeAlreadyExists, connect.CodeOf(err))
+
+						// the failed create rolled back: no user for other@x.com
+						var n int64
+						assert.NoError(t, tx.Model(&user_models.User{}).Where("email = ?", "other@x.com").Count(&n).Error)
+						assert.Equal(t, int64(0), n)
+					})
+				})
+
 				t.Run("list returns team members with roles + filters", func(t *testing.T) {
 					_, err := svc.TeamUserUpdate(ctx, addReq(u2.ID, role_base.Role_ROLE_TEAM_CUSTOMER_SERVICE))
 					assert.NoError(t, err)
 
-					// unfiltered: both members, each carrying their team role
-					res, err := svc.TeamUserList(ctx,
-						connect.NewRequest(&user_iface.TeamUserListRequest{TeamId: teamID}))
+					// unfiltered: both members, each carrying a single team-scoped alias+role
+					res, err := svc.UserList(ctx,
+						connect.NewRequest(&user_iface.UserListRequest{TeamId: teamID}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 2)
 					roleByID := map[uint64]role_base.Role{}
 					picByID := map[uint64]string{}
 					for _, u := range res.Msg.Users {
-						roleByID[u.Id] = u.Role
-						picByID[u.Id] = u.ProfilePicture
+						assert.Len(t, u.Alias, 1)
+						assert.Equal(t, uint64(teamID), u.Alias[0].TeamId)
+						roleByID[u.User.Id] = u.Alias[0].Role
+						picByID[u.User.Id] = u.User.ProfilePicture
 					}
 					assert.Equal(t, role_base.Role_ROLE_TEAM_OWNER, roleByID[uint64(u1.ID)])
 					assert.Equal(t, role_base.Role_ROLE_TEAM_CUSTOMER_SERVICE, roleByID[uint64(u2.ID)])
@@ -101,22 +155,22 @@ func TestTeamUser(t *testing.T) {
 					assert.Equal(t, "pic-bob", picByID[uint64(u2.ID)])
 
 					// role filter -> only the team owner (u1)
-					res, err = svc.TeamUserList(ctx, connect.NewRequest(&user_iface.TeamUserListRequest{
+					res, err = svc.UserList(ctx, connect.NewRequest(&user_iface.UserListRequest{
 						TeamId: teamID,
 						Role:   role_base.Role_ROLE_TEAM_OWNER,
 					}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 1)
-					assert.Equal(t, uint64(u1.ID), res.Msg.Users[0].Id)
+					assert.Equal(t, uint64(u1.ID), res.Msg.Users[0].User.Id)
 
 					// q filter -> matches u2 (username "bob")
-					res, err = svc.TeamUserList(ctx, connect.NewRequest(&user_iface.TeamUserListRequest{
+					res, err = svc.UserList(ctx, connect.NewRequest(&user_iface.UserListRequest{
 						TeamId: teamID,
 						Q:      "bob",
 					}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 1)
-					assert.Equal(t, uint64(u2.ID), res.Msg.Users[0].Id)
+					assert.Equal(t, uint64(u2.ID), res.Msg.Users[0].User.Id)
 				})
 
 				t.Run("remove drops the member", func(t *testing.T) {
@@ -128,11 +182,11 @@ func TestTeamUser(t *testing.T) {
 					}))
 					assert.NoError(t, err)
 
-					res, err := svc.TeamUserList(ctx,
-						connect.NewRequest(&user_iface.TeamUserListRequest{TeamId: teamID}))
+					res, err := svc.UserList(ctx,
+						connect.NewRequest(&user_iface.UserListRequest{TeamId: teamID}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 1)
-					assert.Equal(t, uint64(u2.ID), res.Msg.Users[0].Id)
+					assert.Equal(t, uint64(u2.ID), res.Msg.Users[0].User.Id)
 				})
 
 				t.Run("empty oneof is invalid argument", func(t *testing.T) {

@@ -30,14 +30,16 @@ func TestUserByIDs(t *testing.T) {
 					assert.NoError(t, tx.Create(u).Error)
 				}
 				// team 5: alice = owner "boss", bob = admin "deputy"; carol is not a member.
+				// alice is also in team 6 (owner "chief") to exercise the multi-team path.
 				assert.NoError(t, tx.Create(&user_models.UserTeamRole{TeamID: 5, UserID: alice.ID, Role: role_base.Role_ROLE_TEAM_OWNER, Alias: "boss"}).Error)
+				assert.NoError(t, tx.Create(&user_models.UserTeamRole{TeamID: 6, UserID: alice.ID, Role: role_base.Role_ROLE_TEAM_OWNER, Alias: "chief"}).Error)
 				assert.NoError(t, tx.Create(&user_models.UserTeamRole{TeamID: 5, UserID: bob.ID, Role: role_base.Role_ROLE_TEAM_ADMIN, Alias: "deputy"}).Error)
 
 				svc := user.NewV2UserService(tx)
 				ctx := context.Background()
 				ids := []uint64{uint64(alice.ID), uint64(bob.ID), uint64(carol.ID)}
 
-				t.Run("no team_id: identity only, alias nil", func(t *testing.T) {
+				t.Run("no team_id: all team aliases per user", func(t *testing.T) {
 					res, err := svc.UserByIDs(ctx, connect.NewRequest(&user_iface.UserByIDsRequest{Ids: ids}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 3)
@@ -47,30 +49,40 @@ func TestUserByIDs(t *testing.T) {
 					assert.Equal(t, "alice", a.User.Username)
 					assert.Equal(t, "pic-alice", a.User.ProfilePicture)
 					assert.Equal(t, user_iface.UserStatus_USER_STATUS_ACTIVE, a.User.Status)
-					assert.Nil(t, a.Alias)
+					// alice carries both teams, ordered by team_id (5 then 6)
+					assert.Len(t, a.Alias, 2)
+					assert.Equal(t, uint64(5), a.Alias[0].TeamId)
+					assert.Equal(t, "boss", a.Alias[0].Alias)
+					assert.Equal(t, role_base.Role_ROLE_TEAM_OWNER, a.Alias[0].Role)
+					assert.Equal(t, uint64(6), a.Alias[1].TeamId)
+					assert.Equal(t, "chief", a.Alias[1].Alias)
+
+					// bob is in one team; carol is in none
+					assert.Len(t, res.Msg.Users[uint64(bob.ID)].Alias, 1)
+					assert.Empty(t, res.Msg.Users[uint64(carol.ID)].Alias)
 
 					// suspended status round-trips
 					assert.Equal(t, user_iface.UserStatus_USER_STATUS_SUSPENDED, res.Msg.Users[uint64(bob.ID)].User.Status)
 				})
 
-				t.Run("team_id set: members carry alias + role, non-member nil", func(t *testing.T) {
+				t.Run("team_id set: members carry alias + role, non-member empty", func(t *testing.T) {
 					res, err := svc.UserByIDs(ctx, connect.NewRequest(&user_iface.UserByIDsRequest{Ids: ids, TeamId: 5}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 3)
 
 					a := res.Msg.Users[uint64(alice.ID)].Alias
-					assert.NotNil(t, a)
-					assert.Equal(t, uint64(5), a.TeamId)
-					assert.Equal(t, "boss", a.Alias)
-					assert.Equal(t, role_base.Role_ROLE_TEAM_OWNER, a.Role)
+					assert.Len(t, a, 1)
+					assert.Equal(t, uint64(5), a[0].TeamId)
+					assert.Equal(t, "boss", a[0].Alias)
+					assert.Equal(t, role_base.Role_ROLE_TEAM_OWNER, a[0].Role)
 
 					b := res.Msg.Users[uint64(bob.ID)].Alias
-					assert.NotNil(t, b)
-					assert.Equal(t, "deputy", b.Alias)
-					assert.Equal(t, role_base.Role_ROLE_TEAM_ADMIN, b.Role)
+					assert.Len(t, b, 1)
+					assert.Equal(t, "deputy", b[0].Alias)
+					assert.Equal(t, role_base.Role_ROLE_TEAM_ADMIN, b[0].Role)
 
 					// carol is not a member of team 5
-					assert.Nil(t, res.Msg.Users[uint64(carol.ID)].Alias)
+					assert.Empty(t, res.Msg.Users[uint64(carol.ID)].Alias)
 				})
 
 				t.Run("missing id is omitted", func(t *testing.T) {
