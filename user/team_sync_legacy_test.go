@@ -85,10 +85,10 @@ func TestTeamSynclegacy(t *testing.T) {
 					return count, stream.Err()
 				}
 
-				rolesByUser := func(teamID uint) map[uint]uint {
+				rolesByUser := func(teamID uint) map[uint]role_base.Role {
 					var rows []user_models.UserTeamRole
 					assert.NoError(t, tx.Where("team_id = ?", teamID).Find(&rows).Error)
-					out := map[uint]uint{}
+					out := map[uint]role_base.Role{}
 					for _, r := range rows {
 						out[r.UserID] = r.Role
 					}
@@ -110,9 +110,9 @@ func TestTeamSynclegacy(t *testing.T) {
 					assert.Equal(t, 3, count)
 
 					got := rolesByUser(team)
-					assert.Equal(t, uint(role_base.Role_ROLE_TEAM_OWNER), got[101])
-					assert.Equal(t, uint(role_base.Role_ROLE_TEAM_ADMIN), got[102])
-					assert.Equal(t, uint(role_base.Role_ROLE_TEAM_CUSTOMER_SERVICE), got[103])
+					assert.Equal(t, role_base.Role_ROLE_TEAM_OWNER, got[101])
+					assert.Equal(t, role_base.Role_ROLE_TEAM_ADMIN, got[102])
+					assert.Equal(t, role_base.Role_ROLE_TEAM_CUSTOMER_SERVICE, got[103])
 				})
 
 				t.Run("warehouse team mapping is type-aware", func(t *testing.T) {
@@ -130,9 +130,9 @@ func TestTeamSynclegacy(t *testing.T) {
 					assert.Equal(t, 3, count)
 
 					got := rolesByUser(team)
-					assert.Equal(t, uint(role_base.Role_ROLE_WAREHOUSE_OWNER), got[201])
-					assert.Equal(t, uint(role_base.Role_ROLE_WAREHOUSE_ADMIN), got[202])
-					assert.Equal(t, uint(role_base.Role_ROLE_WAREHOUSE_STAFF), got[203])
+					assert.Equal(t, role_base.Role_ROLE_WAREHOUSE_OWNER, got[201])
+					assert.Equal(t, role_base.Role_ROLE_WAREHOUSE_ADMIN, got[202])
+					assert.Equal(t, role_base.Role_ROLE_WAREHOUSE_STAFF, got[203])
 				})
 
 				t.Run("re-running is idempotent", func(t *testing.T) {

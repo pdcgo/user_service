@@ -35,7 +35,7 @@ func TestCheckAccessTeamRole(t *testing.T) {
 				assert.NoError(t, tx.Create(&user_models.UserTeamRole{
 					UserID: 42,
 					TeamID: teamID,
-					Role:   uint(role_base.Role_ROLE_TEAM_ADMIN),
+					Role:   role_base.Role_ROLE_TEAM_ADMIN,
 				}).Error)
 
 				t.Run("team_id set returns the caller's role", func(t *testing.T) {

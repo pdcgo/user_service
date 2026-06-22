@@ -25,11 +25,12 @@ func (s *v2UserServiceImpl) TeamUserUpdate(
 		rec := &user_models.UserTeamRole{
 			TeamID: uint(teamID),
 			UserID: uint(add.UserId),
-			Role:   uint(add.Role),
+			Role:   add.Role,
+			Alias:  add.Alias,
 		}
 		err := db.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "team_id"}, {Name: "user_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"role"}),
+			DoUpdates: clause.AssignmentColumns([]string{"role", "alias"}),
 		}).Create(rec).Error
 		if err != nil {
 			return nil, err

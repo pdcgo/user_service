@@ -1,6 +1,10 @@
 package user_models
 
-import "time"
+import (
+	"time"
+
+	"github.com/pdcgo/schema/services/role_base/v1"
+)
 
 type User struct {
 	ID             uint   `json:"id" gorm:"primarykey"`
@@ -17,9 +21,10 @@ type User struct {
 }
 
 type UserTeamRole struct {
-	ID        uint      `json:"id" gorm:"primarykey"`
-	TeamID    uint      `json:"team_id" gorm:"index:team_user_unique,unique"`
-	UserID    uint      `json:"user_id" gorm:"index:team_user_unique,unique"`
-	Role      uint      `json:"role"`
-	CreatedAt time.Time `json:"created"`
+	ID        uint           `json:"id" gorm:"primarykey"`
+	TeamID    uint           `json:"team_id" gorm:"index:team_user_unique,unique"`
+	UserID    uint           `json:"user_id" gorm:"index:team_user_unique,unique"`
+	Role      role_base.Role `json:"role"`
+	Alias     string         `json:"alias"`
+	CreatedAt time.Time      `json:"created"`
 }

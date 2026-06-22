@@ -52,7 +52,32 @@ func TestTeamUser(t *testing.T) {
 					var rows []user_models.UserTeamRole
 					assert.NoError(t, tx.Where("team_id = ? AND user_id = ?", teamID, u1.ID).Find(&rows).Error)
 					assert.Len(t, rows, 1)
-					assert.Equal(t, uint(role_base.Role_ROLE_TEAM_OWNER), rows[0].Role)
+					assert.Equal(t, role_base.Role_ROLE_TEAM_OWNER, rows[0].Role)
+				})
+
+				t.Run("add stores and upserts alias", func(t *testing.T) {
+					const aliasTeam = 99
+					addAlias := func(alias string) {
+						_, err := svc.TeamUserUpdate(ctx, connect.NewRequest(&user_iface.TeamUserUpdateRequest{
+							TeamId: aliasTeam,
+							Action: &user_iface.TeamUserUpdateRequest_Add{
+								Add: &user_iface.AddUser{UserId: uint64(u1.ID), Role: role_base.Role_ROLE_TEAM_ADMIN, Alias: alias},
+							},
+						}))
+						assert.NoError(t, err)
+					}
+					aliasOf := func() string {
+						var rec user_models.UserTeamRole
+						assert.NoError(t, tx.Where("team_id = ? AND user_id = ?", uint(aliasTeam), u1.ID).First(&rec).Error)
+						return rec.Alias
+					}
+
+					addAlias("boss")
+					assert.Equal(t, "boss", aliasOf())
+
+					// re-adding upserts the alias
+					addAlias("chief")
+					assert.Equal(t, "chief", aliasOf())
 				})
 
 				t.Run("list returns team members with roles + filters", func(t *testing.T) {

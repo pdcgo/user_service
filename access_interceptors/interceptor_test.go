@@ -44,12 +44,15 @@ func TestAccessInterceptor(t *testing.T) {
 				root := &user_models.User{Username: "root", Email: "root@x.com"}
 				owner := &user_models.User{Username: "owner", Email: "owner@x.com"}
 				stranger := &user_models.User{Username: "stranger", Email: "stranger@x.com"}
-				for _, u := range []*user_models.User{root, owner, stranger} {
+				teamOneAdmin := &user_models.User{Username: "t1admin", Email: "t1admin@x.com"}
+				for _, u := range []*user_models.User{root, owner, stranger, teamOneAdmin} {
 					assert.NoError(t, tx.Create(u).Error)
 				}
 				// root/admin live at team 1; owner is a team-5 owner.
-				assert.NoError(t, tx.Create(&user_models.UserTeamRole{TeamID: 1, UserID: root.ID, Role: uint(role_base.Role_ROLE_ROOT)}).Error)
-				assert.NoError(t, tx.Create(&user_models.UserTeamRole{TeamID: 5, UserID: owner.ID, Role: uint(role_base.Role_ROLE_TEAM_OWNER)}).Error)
+				assert.NoError(t, tx.Create(&user_models.UserTeamRole{TeamID: 1, UserID: root.ID, Role: role_base.Role_ROLE_ROOT}).Error)
+				assert.NoError(t, tx.Create(&user_models.UserTeamRole{TeamID: 5, UserID: owner.ID, Role: role_base.Role_ROLE_TEAM_OWNER}).Error)
+				// non-root holder of a CreateUser policy role at team 1 (the default scope).
+				assert.NoError(t, tx.Create(&user_models.UserTeamRole{TeamID: 1, UserID: teamOneAdmin.ID, Role: role_base.Role_ROLE_TEAM_ADMIN}).Error)
 
 				run := func(req connect.AnyRequest, tkn string) (bool, error) {
 					if tkn != "" {
@@ -116,6 +119,14 @@ func TestAccessInterceptor(t *testing.T) {
 					called, err := run(createReq(), token(t, owner.ID, future))
 					assert.False(t, called)
 					assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+				})
+
+				// Non-scoped role-policy request with teamID == 0 defaults to the root
+				// team (1): a policy-role holder there passes without being root/admin.
+				t.Run("non-scoped: team-1 role holder passes via default scope", func(t *testing.T) {
+					called, err := run(createReq(), token(t, teamOneAdmin.ID, future))
+					assert.NoError(t, err)
+					assert.True(t, called)
 				})
 
 				t.Run("team owner denied on other team", func(t *testing.T) {
