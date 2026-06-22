@@ -2,8 +2,7 @@ package user
 
 import (
 	"context"
-	"fmt"
-	"sort"
+	"log/slog"
 
 	"connectrpc.com/connect"
 	role_base "github.com/pdcgo/schema/services/role_base/v1"
@@ -56,8 +55,9 @@ func legacyRoleToEnum(teamType db_models.TeamType, key string) (role_base.Role, 
 // requested team (domain).
 type legacyRoleRow struct {
 	Role   string
-	UserID uint
-	TeamID uint
+	UserID uint64
+	TeamID uint64
+	Alias  string
 }
 
 // TeamSynclegacy implements [user_ifaceconnect.V2UserServiceHandler]. It reads
@@ -86,8 +86,14 @@ func (s *v2UserServiceImpl) TeamSynclegacy(
 	var rows []legacyRoleRow
 	err = db.
 		Table("user_roles AS ur").
-		Select("r.key AS role, ur.user_id AS user_id, r.domain_id AS team_id").
-		Joins("LEFT JOIN roles r ON r.id = ur.role_id").
+		Select([]string{
+			"r.key as role",
+			"r.domain_id as team_id",
+			"ur.user_id as user_id",
+			"ut.alias",
+		}).
+		Joins("left join roles r on r.id = ur.role_id").
+		Joins("left join user_teams ut on ut.team_id = r.domain_id and ut.user_id = ur.user_id").
 		Where("r.domain_id = ?", teamID).
 		Scan(&rows).
 		Error
@@ -95,47 +101,24 @@ func (s *v2UserServiceImpl) TeamSynclegacy(
 		return err
 	}
 
-	// Resolve every row first; collect any keys we cannot map so we report them
-	// all at once and write nothing on failure.
-	type seedItem struct {
-		userID uint
-		role   role_base.Role
-	}
-	seeds := make([]seedItem, 0, len(rows))
-	unmapped := map[string]struct{}{}
 	for _, row := range rows {
 		role, ok := legacyRoleToEnum(team.Type, row.Role)
 		if !ok {
-			unmapped[row.Role] = struct{}{}
+			slog.Error("cannot map permission", "user", row)
 			continue
 		}
-		seeds = append(seeds, seedItem{userID: row.UserID, role: role})
-	}
 
-	if len(unmapped) > 0 {
-		keys := make([]string, 0, len(unmapped))
-		for k := range unmapped {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		return connect.NewError(
-			connect.CodeFailedPrecondition,
-			fmt.Errorf("team %d (type %q) has unmapped legacy role keys %v: add a mapping/proto enum before syncing", teamID, team.Type, keys),
-		)
-	}
-
-	// 2. Seed each assignment into the new role system. TeamUserUpdate upserts
-	// on (team_id, user_id), so re-running the sync is idempotent.
-	for _, seed := range seeds {
 		_, err = s.TeamUserUpdate(ctx, connect.NewRequest(&user_iface.TeamUserUpdateRequest{
-			TeamId: teamID,
+			TeamId: row.TeamID,
 			Action: &user_iface.TeamUserUpdateRequest_Add{
 				Add: &user_iface.AddUser{
-					UserId: uint64(seed.userID),
-					Role:   seed.role,
+					UserId: row.TeamID,
+					Role:   role,
+					Alias:  row.Alias,
 				},
 			},
 		}))
+
 		if err != nil {
 			return err
 		}
