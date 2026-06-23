@@ -112,11 +112,11 @@ func (s *v2UserServiceImpl) TeamSynclegacy(
 			switch role {
 			case role_base.Role_ROLE_ADMIN, role_base.Role_ROLE_TEAM_ADMIN:
 				_, err = s.TeamUserUpdate(ctx, connect.NewRequest(&user_iface.TeamUserUpdateRequest{
-					TeamId: row.TeamID,
+					TeamId: 1,
 					Action: &user_iface.TeamUserUpdateRequest_Add{
 						Add: &user_iface.AddUser{
 							UserId: row.UserID,
-							Role:   role,
+							Role:   role_base.Role_ROLE_ADMIN,
 							Alias:  row.Alias,
 						},
 					},
