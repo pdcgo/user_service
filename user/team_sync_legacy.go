@@ -108,11 +108,31 @@ func (s *v2UserServiceImpl) TeamSynclegacy(
 			continue
 		}
 
+		if team.Type == db_models.AdminTeamType {
+			switch role {
+			case role_base.Role_ROLE_ADMIN, role_base.Role_ROLE_TEAM_ADMIN:
+				_, err = s.TeamUserUpdate(ctx, connect.NewRequest(&user_iface.TeamUserUpdateRequest{
+					TeamId: row.TeamID,
+					Action: &user_iface.TeamUserUpdateRequest_Add{
+						Add: &user_iface.AddUser{
+							UserId: row.UserID,
+							Role:   role,
+							Alias:  row.Alias,
+						},
+					},
+				}))
+
+				if err != nil {
+					return err
+				}
+			}
+		}
+
 		_, err = s.TeamUserUpdate(ctx, connect.NewRequest(&user_iface.TeamUserUpdateRequest{
 			TeamId: row.TeamID,
 			Action: &user_iface.TeamUserUpdateRequest_Add{
 				Add: &user_iface.AddUser{
-					UserId: row.TeamID,
+					UserId: row.UserID,
 					Role:   role,
 					Alias:  row.Alias,
 				},
