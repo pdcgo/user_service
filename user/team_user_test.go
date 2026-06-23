@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	common "github.com/pdcgo/schema/services/common/v1"
 	role_base "github.com/pdcgo/schema/services/role_base/v1"
 	"github.com/pdcgo/schema/services/user_iface/v2"
 	"github.com/pdcgo/shared/pkg/moretest"
@@ -138,7 +139,7 @@ func TestTeamUser(t *testing.T) {
 
 					// unfiltered: both members, each carrying a single team-scoped alias+role
 					res, err := svc.UserList(ctx,
-						connect.NewRequest(&user_iface.UserListRequest{TeamId: teamID}))
+						connect.NewRequest(&user_iface.UserListRequest{TeamId: teamID, Page: &common.PageFilter{Page: 1, Limit: 10}}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 2)
 					roleByID := map[uint64]role_base.Role{}
@@ -158,6 +159,7 @@ func TestTeamUser(t *testing.T) {
 					res, err = svc.UserList(ctx, connect.NewRequest(&user_iface.UserListRequest{
 						TeamId: teamID,
 						Role:   role_base.Role_ROLE_TEAM_OWNER,
+						Page:   &common.PageFilter{Page: 1, Limit: 10},
 					}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 1)
@@ -167,6 +169,7 @@ func TestTeamUser(t *testing.T) {
 					res, err = svc.UserList(ctx, connect.NewRequest(&user_iface.UserListRequest{
 						TeamId: teamID,
 						Q:      "bob",
+						Page:   &common.PageFilter{Page: 1, Limit: 10},
 					}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 1)
@@ -183,7 +186,7 @@ func TestTeamUser(t *testing.T) {
 					assert.NoError(t, err)
 
 					res, err := svc.UserList(ctx,
-						connect.NewRequest(&user_iface.UserListRequest{TeamId: teamID}))
+						connect.NewRequest(&user_iface.UserListRequest{TeamId: teamID, Page: &common.PageFilter{Page: 1, Limit: 10}}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 1)
 					assert.Equal(t, uint64(u2.ID), res.Msg.Users[0].User.Id)

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	common "github.com/pdcgo/schema/services/common/v1"
 	role_base "github.com/pdcgo/schema/services/role_base/v1"
 	"github.com/pdcgo/schema/services/user_iface/v2"
 	"github.com/pdcgo/shared/pkg/moretest"
@@ -49,7 +50,7 @@ func TestUserListAllTeams(t *testing.T) {
 				}
 
 				t.Run("team_id 0: all users, all their team aliases", func(t *testing.T) {
-					res, err := svc.UserList(ctx, connect.NewRequest(&user_iface.UserListRequest{TeamId: 0}))
+					res, err := svc.UserList(ctx, connect.NewRequest(&user_iface.UserListRequest{TeamId: 0, Page: &common.PageFilter{Page: 1, Limit: 10}}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 3)
 					m := byID(res.Msg.Users)
@@ -73,6 +74,7 @@ func TestUserListAllTeams(t *testing.T) {
 					res, err := svc.UserList(ctx, connect.NewRequest(&user_iface.UserListRequest{
 						TeamId: 0,
 						Role:   role_base.Role_ROLE_TEAM_OWNER,
+						Page:   &common.PageFilter{Page: 1, Limit: 10},
 					}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 1)
@@ -84,14 +86,37 @@ func TestUserListAllTeams(t *testing.T) {
 					res, err := svc.UserList(ctx, connect.NewRequest(&user_iface.UserListRequest{
 						TeamId: 0,
 						Q:      "erin",
+						Page:   &common.PageFilter{Page: 1, Limit: 10},
 					}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 1)
 					assert.Equal(t, uint64(erin.ID), res.Msg.Users[0].User.Id)
 				})
 
+				t.Run("pagination splits the all-teams list", func(t *testing.T) {
+					p1, err := svc.UserList(ctx, connect.NewRequest(&user_iface.UserListRequest{
+						TeamId: 0,
+						Page:   &common.PageFilter{Page: 1, Limit: 2},
+					}))
+					assert.NoError(t, err)
+					assert.Len(t, p1.Msg.Users, 2)
+					assert.Equal(t, int64(3), p1.Msg.PageInfo.TotalItems)
+					assert.Equal(t, int64(2), p1.Msg.PageInfo.TotalPage)
+					// ordered by user id asc: dave then erin on page 1
+					assert.Equal(t, uint64(dave.ID), p1.Msg.Users[0].User.Id)
+					assert.Equal(t, uint64(erin.ID), p1.Msg.Users[1].User.Id)
+
+					p2, err := svc.UserList(ctx, connect.NewRequest(&user_iface.UserListRequest{
+						TeamId: 0,
+						Page:   &common.PageFilter{Page: 2, Limit: 2},
+					}))
+					assert.NoError(t, err)
+					assert.Len(t, p2.Msg.Users, 1)
+					assert.Equal(t, uint64(frank.ID), p2.Msg.Users[0].User.Id)
+				})
+
 				t.Run("team_id set keeps the single team-scoped path", func(t *testing.T) {
-					res, err := svc.UserList(ctx, connect.NewRequest(&user_iface.UserListRequest{TeamId: 10}))
+					res, err := svc.UserList(ctx, connect.NewRequest(&user_iface.UserListRequest{TeamId: 10, Page: &common.PageFilter{Page: 1, Limit: 10}}))
 					assert.NoError(t, err)
 					assert.Len(t, res.Msg.Users, 2) // dave + erin, not frank
 					m := byID(res.Msg.Users)
