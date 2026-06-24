@@ -5,6 +5,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/pdcgo/san_collection/san_caches"
+	"github.com/pdcgo/san_collection/san_verification"
 	"github.com/pdcgo/schema/services/user_iface/v2/user_ifaceconnect"
 	"github.com/pdcgo/shared/configs"
 	"github.com/pdcgo/shared/custom_connect"
@@ -36,7 +37,7 @@ func NewRegister(
 
 		roleOpt := connect.WithInterceptors(access_interceptors.NewAccessInterceptor(db, cfg.JwtSecret, cacheMgr))
 		userPath, userHandler := user_ifaceconnect.NewV2UserServiceHandler(
-			user.NewV2UserService(db),
+			user.NewV2UserService(db, san_verification.NewTwilioOtpVerification(&cfg.TwilioConfig)),
 			defaultInterceptor,
 			roleOpt,
 		)

@@ -9,6 +9,7 @@ import (
 	"github.com/pdcgo/schema/services/user_iface/v2"
 	"github.com/pdcgo/shared/pkg/moretest"
 	"github.com/pdcgo/shared/pkg/moretest/moretest_mock"
+	"github.com/pdcgo/san_collection/san_verification"
 	"github.com/pdcgo/user_service/user"
 	"github.com/pdcgo/user_service/user_models"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +36,7 @@ func TestUserByIDs(t *testing.T) {
 				assert.NoError(t, tx.Create(&user_models.UserTeamRole{TeamID: 6, UserID: alice.ID, Role: role_base.Role_ROLE_TEAM_OWNER, Alias: "chief"}).Error)
 				assert.NoError(t, tx.Create(&user_models.UserTeamRole{TeamID: 5, UserID: bob.ID, Role: role_base.Role_ROLE_TEAM_ADMIN, Alias: "deputy"}).Error)
 
-				svc := user.NewV2UserService(tx)
+				svc := user.NewV2UserService(tx, san_verification.NewMockOtpVerification())
 				ctx := context.Background()
 				ids := []uint64{uint64(alice.ID), uint64(bob.ID), uint64(carol.ID)}
 

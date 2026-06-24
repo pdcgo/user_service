@@ -8,9 +8,10 @@ import (
 	"github.com/pdcgo/user_service/user_models"
 )
 
-// SuspendUser implements [user_ifaceconnect.V2UserServiceHandler]. It marks the
-// user as suspended. Access is root/admin only (enforced by the access
-// interceptor via the request_policy).
+// SuspendUser implements [user_ifaceconnect.V2UserServiceHandler]. It sets the
+// user's suspended state to the request's suspend flag (true suspends, false
+// un-suspends). Access is root/admin only (enforced by the access interceptor via
+// the request_policy).
 func (s *v2UserServiceImpl) SuspendUser(
 	ctx context.Context,
 	req *connect.Request[user_iface.SuspendUserRequest],
@@ -19,7 +20,7 @@ func (s *v2UserServiceImpl) SuspendUser(
 	if err := db.
 		Model(&user_models.User{}).
 		Where("id = ?", req.Msg.UserId).
-		Update("is_suspended", true).
+		Update("is_suspended", req.Msg.Suspend).
 		Error; err != nil {
 		return nil, err
 	}

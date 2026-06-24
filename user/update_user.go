@@ -23,14 +23,9 @@ func (s *v2UserServiceImpl) UpdateUser(
 	if pay.Email != "" {
 		updates["email"] = strings.ToLower(strings.TrimSpace(pay.Email))
 	}
-	if pay.Username != "" {
-		updates["username"] = strings.ToLower(strings.TrimSpace(pay.Username))
-	}
+
 	if pay.Name != "" {
 		updates["name"] = pay.Name
-	}
-	if pay.PhoneNumber != "" {
-		updates["phone_number"] = strings.TrimSpace(pay.PhoneNumber)
 	}
 
 	db := s.db.WithContext(ctx)

@@ -10,6 +10,7 @@ import (
 	"github.com/pdcgo/shared/pkg/moretest"
 	"github.com/pdcgo/shared/pkg/moretest/moretest_mock"
 	"github.com/pdcgo/user_service/access_interceptors"
+	"github.com/pdcgo/san_collection/san_verification"
 	"github.com/pdcgo/user_service/user"
 	"github.com/pdcgo/user_service/user_models"
 	"github.com/stretchr/testify/assert"
@@ -54,7 +55,7 @@ func TestTeamAccessList(t *testing.T) {
 				assert.NoError(t, tx.Create(&user_models.UserTeamRole{TeamID: 10, UserID: alice.ID, Role: role_base.Role_ROLE_WAREHOUSE_OWNER, Alias: "a10"}).Error)
 				assert.NoError(t, tx.Create(&user_models.UserTeamRole{TeamID: 20, UserID: alice.ID, Role: role_base.Role_ROLE_TEAM_ADMIN, Alias: "a20"}).Error)
 
-				svc := user.NewV2UserService(tx)
+				svc := user.NewV2UserService(tx, san_verification.NewMockOtpVerification())
 
 				aliceCtx := access_interceptors.SetIdentityToCtx(
 					context.Background(),

@@ -10,6 +10,7 @@ import (
 	"github.com/pdcgo/schema/services/user_iface/v2"
 	"github.com/pdcgo/shared/pkg/moretest"
 	"github.com/pdcgo/shared/pkg/moretest/moretest_mock"
+	"github.com/pdcgo/san_collection/san_verification"
 	"github.com/pdcgo/user_service/user"
 	"github.com/pdcgo/user_service/user_models"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,7 @@ func TestTeamUser(t *testing.T) {
 		func(t *testing.T) {
 			scenario(t, func(tx *gorm.DB) {
 				assert.NoError(t, tx.AutoMigrate(&user_models.User{}, &user_models.UserTeamRole{}))
-				svc := user.NewV2UserService(tx)
+				svc := user.NewV2UserService(tx, san_verification.NewMockOtpVerification())
 				ctx := context.Background()
 
 				u1 := &user_models.User{Username: "alice", Email: "alice@x.com", Name: "Alice", ProfilePicture: "pic-alice"}

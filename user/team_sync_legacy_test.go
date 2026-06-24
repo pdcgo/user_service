@@ -13,6 +13,7 @@ import (
 	"github.com/pdcgo/shared/db_models"
 	"github.com/pdcgo/shared/pkg/moretest"
 	"github.com/pdcgo/shared/pkg/moretest/moretest_mock"
+	"github.com/pdcgo/san_collection/san_verification"
 	"github.com/pdcgo/user_service/user"
 	"github.com/pdcgo/user_service/user_models"
 	"github.com/stretchr/testify/assert"
@@ -61,7 +62,7 @@ func TestTeamSynclegacy(t *testing.T) {
 
 				// Real RPC, exercised through an in-process connect server so the
 				// server-stream path is covered end to end.
-				svc := user.NewV2UserService(tx)
+				svc := user.NewV2UserService(tx, san_verification.NewMockOtpVerification())
 				mux := http.NewServeMux()
 				mux.Handle(user_ifaceconnect.NewV2UserServiceHandler(svc))
 				srv := httptest.NewServer(mux)
