@@ -2,6 +2,7 @@ package access_interceptors_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
@@ -224,6 +225,111 @@ func TestAccessInterceptor(t *testing.T) {
 					assert.NoError(t, err)
 					assert.Equal(t, uint32(root.ID), id)
 					assert.Equal(t, uint64(0), scope)
+				})
+			})
+		})
+}
+
+// fakeStreamConn is a minimal connect.StreamingHandlerConn for exercising
+// WrapStreamingHandler: it carries a settable request header and a Spec whose Schema is a
+// real method descriptor (so the interceptor can read the request_policy without a message).
+type fakeStreamConn struct {
+	spec   connect.Spec
+	header http.Header
+}
+
+func (f *fakeStreamConn) Spec() connect.Spec           { return f.spec }
+func (f *fakeStreamConn) Peer() connect.Peer           { return connect.Peer{} }
+func (f *fakeStreamConn) Receive(any) error            { return nil }
+func (f *fakeStreamConn) RequestHeader() http.Header   { return f.header }
+func (f *fakeStreamConn) Send(any) error               { return nil }
+func (f *fakeStreamConn) ResponseHeader() http.Header  { return http.Header{} }
+func (f *fakeStreamConn) ResponseTrailer() http.Header { return http.Header{} }
+
+// TeamSynclegacy is server-streaming with request_policy roles [ROLE_ROOT, ROLE_ADMIN];
+// it exercises the WrapStreamingHandler enforcement ladder.
+func TestAccessInterceptorStreaming(t *testing.T) {
+	md := user_iface.
+		File_user_iface_v2_v2_user_proto.
+		Services().
+		ByName("V2UserService").
+		Methods().
+		ByName("TeamSynclegacy")
+
+	var scenario moretest_mock.DbScenario
+	moretest.Suite(t, "access interceptor streaming",
+		moretest.SetupListFunc{moretest_mock.MockPostgresDatabase(&scenario)},
+		func(t *testing.T) {
+			scenario(t, func(tx *gorm.DB) {
+				assert.NoError(t, tx.AutoMigrate(&user_models.User{}, &user_models.UserTeamRole{}))
+
+				root := &user_models.User{Username: "sroot", Email: "sroot@x.com"}
+				stranger := &user_models.User{Username: "sstranger", Email: "sstranger@x.com"}
+				for _, u := range []*user_models.User{root, stranger} {
+					assert.NoError(t, tx.Create(u).Error)
+				}
+				assert.NoError(t, tx.Create(&user_models.UserTeamRole{TeamID: 1, UserID: root.ID, Role: role_base.Role_ROLE_ROOT}).Error)
+
+				run := func(tkn string) (bool, context.Context, error) {
+					header := http.Header{}
+					if tkn != "" {
+						header.Set("Authorization", "Bearer "+tkn)
+					}
+					conn := &fakeStreamConn{
+						spec: connect.Spec{
+							StreamType: connect.StreamTypeServer,
+							Schema:     md,
+							Procedure:  "/user_iface.v2.V2UserService/TeamSynclegacy",
+						},
+						header: header,
+					}
+					called := false
+					var gotCtx context.Context
+					next := connect.StreamingHandlerFunc(func(ctx context.Context, c connect.StreamingHandlerConn) error {
+						called = true
+						gotCtx = ctx
+						return nil
+					})
+					err := access_interceptors.
+						NewAccessInterceptor(tx, secret, san_caches.NewSkipCacheManager()).
+						WrapStreamingHandler(next)(context.Background(), conn)
+					return called, gotCtx, err
+				}
+
+				future := time.Now().Add(time.Hour)
+				past := time.Now().Add(-time.Hour)
+
+				t.Run("missing token -> unauthenticated", func(t *testing.T) {
+					called, _, err := run("")
+					assert.False(t, called)
+					assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+				})
+
+				t.Run("garbage token -> unauthenticated", func(t *testing.T) {
+					called, _, err := run("not-a-token")
+					assert.False(t, called)
+					assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+				})
+
+				t.Run("expired token -> unauthenticated", func(t *testing.T) {
+					called, _, err := run(token(t, root.ID, past))
+					assert.False(t, called)
+					assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+				})
+
+				t.Run("stranger denied (needs root/admin)", func(t *testing.T) {
+					called, _, err := run(token(t, stranger.ID, future))
+					assert.False(t, called)
+					assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
+				})
+
+				t.Run("root passes + identity in ctx", func(t *testing.T) {
+					called, gotCtx, err := run(token(t, root.ID, future))
+					assert.NoError(t, err)
+					assert.True(t, called)
+					id, e := access_interceptors.GetIdentityFromCtx(gotCtx)
+					assert.NoError(t, e)
+					assert.Equal(t, uint32(root.ID), id.IdentityId)
 				})
 			})
 		})

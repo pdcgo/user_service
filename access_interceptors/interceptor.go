@@ -13,6 +13,7 @@ import (
 	"github.com/pdcgo/user_service/identity"
 	"github.com/pdcgo/user_service/user_models"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"gorm.io/gorm"
 )
@@ -54,8 +55,73 @@ func (a *accessInterceptor) WrapStreamingClient(next connect.StreamingClientFunc
 	return next
 }
 
+// WrapStreamingHandler enforces the same (role_base.v1.request_policy) as WrapUnary, but
+// for server-streaming handlers. The request message body is not available to a streaming
+// interceptor (the handler reads it via conn.Receive), so:
+//   - the policy is read from the method's INPUT DESCRIPTOR (conn.Spec().Schema), not an
+//     instance;
+//   - the use_scope FIELD VALUE cannot be read, so team-scoped streaming policies fall back
+//     to root/admin-only (no current guarded streaming RPC is team-scoped).
+//
+// The caller identity is placed in ctx (SetIdentityToCtx) so the handler can read it via
+// GetIdentityFromCtx.
 func (a *accessInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
-	return next
+	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
+		if conn.Spec().IsClient {
+			return next(ctx, conn)
+		}
+
+		md, ok := conn.Spec().Schema.(protoreflect.MethodDescriptor)
+		if !ok || md == nil {
+			return connect.NewError(connect.CodeInternal, errors.New("request has no method schema"))
+		}
+
+		policy := requestPolicyFromMethod(md)
+		if policy == nil {
+			return connect.NewError(connect.CodePermissionDenied, errors.New("no access policy"))
+		}
+		if policy.AllowAll {
+			return next(ctx, conn)
+		}
+
+		token := bearerToken(conn.RequestHeader().Get("Authorization"))
+		if token == "" {
+			return connect.NewError(connect.CodeUnauthenticated, errors.New("missing token"))
+		}
+		tok, err := identity.Parse(a.secret, token)
+		if err != nil {
+			return connect.NewError(connect.CodeUnauthenticated, errors.New("invalid token"))
+		}
+		if tok.IsExpired(time.Now()) {
+			return connect.NewError(connect.CodeUnauthenticated, errors.New("token expired"))
+		}
+		userID := uint(tok.IdentityId)
+
+		// Make the caller identity available to the handler. Scope is 0 — a streaming
+		// interceptor cannot read the use_scope field value.
+		ctx = SetIdentityToCtx(ctx, tok.Identity)
+		ctx = SetScopeIDToCtx(ctx, 0)
+
+		// allow_only_authenticated (unscoped for streaming): a valid token is enough.
+		if policy.AllowOnlyAuthenticated {
+			return next(ctx, conn)
+		}
+
+		// Otherwise require ROLE_ROOT/ROLE_ADMIN at the system team (see the scoped-policy
+		// limitation above).
+		isRoot, err := a.hasRole(ctx, userID, rootTeamID, []role_base.Role{
+			role_base.Role_ROLE_ROOT,
+			role_base.Role_ROLE_ADMIN,
+		})
+		if err != nil {
+			return err
+		}
+		if !isRoot {
+			return connect.NewError(connect.CodePermissionDenied, errors.New("insufficient role"))
+		}
+
+		return next(ctx, conn)
+	}
 }
 
 func (a *accessInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
@@ -201,7 +267,20 @@ func (a *accessInterceptor) hasRole(ctx context.Context, userID uint, teamID uin
 
 // requestPolicy reads the (role_base.v1.request_policy) message option, or nil.
 func requestPolicy(msg proto.Message) *role_base.RequestPolicy {
-	opts, ok := msg.ProtoReflect().Descriptor().Options().(*descriptorpb.MessageOptions)
+	return policyFromDescriptor(msg.ProtoReflect().Descriptor())
+}
+
+// requestPolicyFromMethod reads the (role_base.v1.request_policy) option from a method's
+// input message descriptor. Used by the streaming path, where no message instance is
+// available (only conn.Spec().Schema, a protoreflect.MethodDescriptor).
+func requestPolicyFromMethod(md protoreflect.MethodDescriptor) *role_base.RequestPolicy {
+	return policyFromDescriptor(md.Input())
+}
+
+// policyFromDescriptor extracts the request_policy extension from a message descriptor's
+// options, or nil.
+func policyFromDescriptor(desc protoreflect.MessageDescriptor) *role_base.RequestPolicy {
+	opts, ok := desc.Options().(*descriptorpb.MessageOptions)
 	if !ok || opts == nil {
 		return nil
 	}
